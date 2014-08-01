@@ -2,28 +2,39 @@ CREATE OR REPLACE FUNCTION simplify_geometry(geom geometry, tolerance float)
   RETURNS geometry AS
 $BODY$
 
-declare linestring geometry;
-declare simplified geometry;
-declare testSegment geometry;
+DECLARE geomType text;
+DECLARE simplified geometry;
+DECLARE testSegment geometry;
+DECLARE simplifiedElements geometry[];
 
-begin
+BEGIN
 
-  simplified := st_simplify(geom, $2);
+  geomType := GeometryType(geom);
 
-  if ST_IsClosed(simplified) then
-    linestring := st_exteriorring(simplified);
-    testSegment := ST_MakeLine(ST_PointN(linestring, 2), ST_PointN(linestring, ST_NPoints(linestring)-1));
-    raise notice 'test point : % ', st_astext(ST_StartPoint(linestring));
-    raise notice 'test line : % ', st_astext(testSegment);
-    raise notice 'distance : % ', ST_Distance(ST_StartPoint(linestring), testSegment);
-    if ST_Distance(ST_StartPoint(linestring), testSegment) < tolerance then
-      linestring := st_removepoint(linestring, 0);
-      linestring := st_removepoint(linestring, ST_NPoints(linestring)-1);
-      linestring := st_addpoint(linestring, ST_StartPoint(linestring));
-      return st_makepolygon(linestring);
-    end if;
-  end if;
-  return simplified;
+  IF ST_IsEmpty(geom) THEN
+    RETURN geom;
+  ELSIF geomType ~ '(MULTI|COLLECTION)' THEN
+    simplifiedElements := array(SELECT simplify_geometry((ST_Dump(geom)).geom, tolerance));
+    RETURN ST_Collect(simplifiedElements);
+  ELSIF geomType = 'LINESTRING' THEN
+    simplified := ST_Simplify(geom, tolerance);
 
-end
+    IF ST_IsClosed(simplified) THEN
+      testSegment := ST_MakeLine(ST_PointN(simplified, 2), ST_PointN(simplified, ST_NPoints(simplified)-1));
+      IF ST_Distance(ST_StartPoint(simplified), testSegment) < tolerance THEN
+        simplified := ST_RemovePoint(simplified, 0);
+        simplified := ST_RemovePoint(simplified, ST_NPoints(simplified)-1);
+        simplified := ST_AddPoint(simplified, ST_StartPoint(simplified));
+      END IF;
+    END IF;
+
+    RETURN simplified;
+  ELSIF geomType = 'POLYGON' THEN
+    simplifiedElements := array(SELECT simplify_geometry(ST_ExteriorRing((ST_DumpRings(geom)).geom), tolerance));
+    RETURN ST_MakePolygon(simplifiedElements[1], simplifiedElements[2:array_length(simplifiedElements,1)]);
+  ELSE
+    RETURN ST_Simplify(geom, tolerance);
+  END IF;
+
+END
 $BODY$  LANGUAGE plpgsql IMMUTABLE
