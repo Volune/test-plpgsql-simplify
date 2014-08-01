@@ -1,0 +1,1 @@
+SELECT ST_NPoints(simplify_geometry(ST_GeomFromText($1), 1)) AS "points"

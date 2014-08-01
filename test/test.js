@@ -19,17 +19,29 @@ console.log("Using %s", pgUrl);
 _.extend(pgConfig, new ConnectionParameters(pgUrl));
 _.extend(pg.defaults, pgConfig);
 
-var dataDir = path.resolve(__dirname, 'data');
+var testExpectGeometryDir = path.resolve(__dirname, 'expect_geometry');
 var testExpectGeometrySql = '' + fs.readFileSync(path.resolve(__dirname, 'testExpectGeometry.sql'));
+var testExpectNPointsDir = path.resolve(__dirname, 'expect_npoints');
+var testExpectNPointsSql = '' + fs.readFileSync(path.resolve(__dirname, 'testExpectNPoints.sql'));
 
-describe('Test simplify polygons', function () {
-    before(createSimplifyFunction);
+before(createSimplifyFunction);
 
-    var files = fs.readdirSync(dataDir);
+describe('Test expect geometry', function () {
+    var files = fs.readdirSync(testExpectGeometryDir);
     _.each(files, function (file) {
         it(file, function (done) {
             this.timeout(10000);
             testExpectGeometry(file, done);
+        });
+    });
+});
+
+describe('Test expect npoints', function () {
+    var files = fs.readdirSync(testExpectNPointsDir);
+    _.each(files, function (file) {
+        it(file, function (done) {
+            this.timeout(10000);
+            testExpectNPoints(file, done);
         });
     });
 });
@@ -49,8 +61,8 @@ function createSimplifyFunction(done) {
 }
 
 function testExpectGeometry(directory, testDone) {
-    var geometry = '' + fs.readFileSync(path.resolve(dataDir, directory, 'geometry.wkt'));
-    var expected = '' + fs.readFileSync(path.resolve(dataDir, directory, 'expected.wkt'));
+    var geometry = '' + fs.readFileSync(path.resolve(testExpectGeometryDir, directory, 'geometry.wkt'));
+    var expected = '' + fs.readFileSync(path.resolve(testExpectGeometryDir, directory, 'expected.wkt'));
     pg.connect(function (err, client, pgDone) {
         if (err) {
             testDone(err);
@@ -64,6 +76,30 @@ function testExpectGeometry(directory, testDone) {
                     var rows = result.rows;
                     expect(rows).to.have.length(1);
                     expect(rows[0].geometry).to.equal(expected);
+                    testDone();
+                }
+            });
+        }
+    });
+}
+
+function testExpectNPoints(file, testDone) {
+    var geometry = '' + fs.readFileSync(path.resolve(testExpectNPointsDir, file));
+    var match = file.match(/expect_(\d+)_point/);
+    var expected = +match[1];
+    pg.connect(function (err, client, pgDone) {
+        if (err) {
+            testDone(err);
+        } else {
+            client.query(testExpectNPointsSql, [geometry], function (err, result) {
+                pgDone();
+                if (err) {
+                    testDone(err);
+                } else {
+                    expect(result).to.have.property('rows');
+                    var rows = result.rows;
+                    expect(rows).to.have.length(1);
+                    expect(rows[0].points).to.equal(expected);
                     testDone();
                 }
             });
