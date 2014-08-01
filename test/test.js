@@ -75,7 +75,7 @@ function testExpectGeometry(directory, testDone) {
                     expect(result).to.have.property('rows');
                     var rows = result.rows;
                     expect(rows).to.have.length(1);
-                    expect(rows[0].geometry).to.equal(expected);
+                    expect(comparableGeometry(rows[0].geometry)).to.equal(comparableGeometry(expected));
                     testDone();
                 }
             });
@@ -105,4 +105,20 @@ function testExpectNPoints(file, testDone) {
             });
         }
     });
+}
+
+function comparableGeometry(wkt) {
+    var points = wkt.match(/\(([^()]+)\)/)[1].split(',');
+    //remove closing point
+    points.length -= 1;
+    var minPoint = points[0];
+    _.each(points, function (point) {
+        if (point < minPoint) {
+            minPoint = point;
+        }
+    });
+    var indexOfMin = points.indexOf(minPoint);
+    points.push.apply(points, points.slice(0, indexOfMin));
+    points.splice(0, indexOfMin);
+    return points.join(',');
 }
