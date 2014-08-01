@@ -28,12 +28,7 @@ before(createSimplifyFunction);
 
 describe('Test expect geometry', function () {
     var files = fs.readdirSync(testExpectGeometryDir);
-    _.each(files, function (file) {
-        it(file, function (done) {
-            this.timeout(10000);
-            testExpectGeometry(file, done);
-        });
-    });
+    _.each(files, testExpectGeometry);
 });
 
 describe('Test expect npoints', function () {
@@ -60,26 +55,29 @@ function createSimplifyFunction(done) {
     });
 }
 
-function testExpectGeometry(directory, testDone) {
+function testExpectGeometry(directory) {
     var geometry = '' + fs.readFileSync(path.resolve(testExpectGeometryDir, directory, 'geometry.wkt'));
     var expected = '' + fs.readFileSync(path.resolve(testExpectGeometryDir, directory, 'expected.wkt'));
-    pg.connect(function (err, client, pgDone) {
-        if (err) {
-            testDone(err);
-        } else {
-            client.query(testExpectGeometrySql, [geometry], function (err, result) {
-                pgDone();
-                if (err) {
-                    testDone(err);
-                } else {
-                    expect(result).to.have.property('rows');
-                    var rows = result.rows;
-                    expect(rows).to.have.length(1);
-                    expect(comparableGeometry(rows[0].geometry)).to.equal(comparableGeometry(expected));
-                    testDone();
-                }
-            });
-        }
+    it(directory + ' ' + geometry, function(testDone){
+        this.timeout(10000);
+        pg.connect(function (err, client, pgDone) {
+            if (err) {
+                testDone(err);
+            } else {
+                client.query(testExpectGeometrySql, [geometry], function (err, result) {
+                    pgDone();
+                    if (err) {
+                        testDone(err);
+                    } else {
+                        expect(result).to.have.property('rows');
+                        var rows = result.rows;
+                        expect(rows).to.have.length(1);
+                        expect(comparableGeometry(rows[0].geometry)).to.equal(comparableGeometry(expected));
+                        testDone();
+                    }
+                });
+            }
+        });
     });
 }
 
