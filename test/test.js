@@ -84,7 +84,7 @@ function testExpectGeometry(directory) {
 function testExpectNPoints(file, testDone) {
     var geometry = '' + fs.readFileSync(path.resolve(testExpectNPointsDir, file));
     var match = file.match(/expect_(\d+)_point/);
-    var expected = +match[1];
+    var expected = match ? +match[1] : null;
     pg.connect(function (err, client, pgDone) {
         if (err) {
             testDone(err);

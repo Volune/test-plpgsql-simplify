@@ -6,6 +6,7 @@ DECLARE geomType text;
 DECLARE simplified geometry;
 DECLARE testSegment geometry;
 DECLARE simplifiedElements geometry[];
+DECLARE simplifiedHoles geometry[];
 
 BEGIN
 
@@ -31,7 +32,16 @@ BEGIN
     RETURN simplified;
   ELSIF geomType = 'POLYGON' THEN
     simplifiedElements := array(SELECT simplify_geometry(ST_ExteriorRing((ST_DumpRings(geom)).geom), tolerance));
-    RETURN ST_MakePolygon(simplifiedElements[1], simplifiedElements[2:array_length(simplifiedElements,1)]);
+    IF simplifiedElements[1] IS NULL OR ST_NPoints(simplifiedElements[1]) < 4 THEN
+      RETURN NULL;
+    ELSE
+      simplifiedHoles := array(
+        SELECT el
+        FROM (SELECT unnest(simplifiedElements[2:array_length(simplifiedElements,1)]) AS el) AS holes
+        WHERE el IS NOT NULL AND ST_NPoints(el) >= 4
+      );
+      RETURN ST_MakePolygon(simplifiedElements[1], simplifiedHoles);
+    END IF;
   ELSE
     RETURN ST_Simplify(geom, tolerance);
   END IF;
